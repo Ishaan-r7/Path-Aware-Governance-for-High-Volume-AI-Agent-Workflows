@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pathaware-governance"
+version = "0.1.0"
+description = "Experimental path-aware governance for concurrent AI-agent workflows"
+requires-python = ">=3.11"
+
+[project.optional-dependencies]
+kafka = ["confluent-kafka>=2.6,<4"]
+
+[project.scripts]
+governance-demo = "pathaware_governance.demo:main"
+generate-workflows = "pathaware_governance.generator:main"
+governance-stream = "pathaware_governance.streaming:main"
+governance-consistency = "pathaware_governance.consistency:main"
+governance-benchmark = "pathaware_governance.benchmark:main"
+governance-report = "pathaware_governance.reporting:main"
+governance-kafka-smoke = "pathaware_governance.kafka_smoke:main"
+governance-distributed = "pathaware_governance.distributed:main"
+governance-dashboard = "pathaware_governance.dashboard:main"
+
+[tool.ruff]
+line-length = 100
+
+[tool.setuptools]
+packages = ["pathaware_governance"]

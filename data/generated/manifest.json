@@ -1,0 +1,12 @@
+{
+  "template_version": "1.0.0",
+  "generation_seed": 560,
+  "workflow_count": 150,
+  "category_counts": {
+    "cross_agent_violation": 45,
+    "multi_step_violation": 24,
+    "near_miss_legitimate": 30,
+    "safe": 30,
+    "single_action_violation": 21
+  }
+}

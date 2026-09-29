@@ -1,0 +1,9 @@
+consistency,concurrency,workers,propagation_delay_ms,propagation_service_ms,workflow_count,event_count,stale_reads,stale_read_rate,mean_version_lag,max_version_lag,true_positives,false_positives,false_negatives,true_negatives,recall,false_positive_rate,decision_latency_p50_us,decision_latency_p95_us,decision_latency_p99_us
+strong,10,8,0,0,150,396,0,0.0,0.0,0,90,0,0,60,1.0,0.0,1.417,2.083,2.875
+weak,10,8,2.0,0.25,150,396,0,0.0,0.0,0,90,0,0,60,1.0,0.0,1.542,2.417,3.541
+strong,25,8,0,0,150,396,0,0.0,0.0,0,90,0,0,60,1.0,0.0,1.625,2.166,2.458
+weak,25,8,2.0,0.25,150,396,0,0.0,0.0,0,90,0,0,60,1.0,0.0,1.458,2.041,3.083
+strong,50,8,0,0,150,396,0,0.0,0.0,0,90,0,0,60,1.0,0.0,1.375,1.792,1.959
+weak,50,8,2.0,0.25,150,396,35,0.08838383838383838,0.08838383838383838,1,81,0,9,60,0.9,0.0,1.5,2.042,2.417
+strong,100,8,0,0,150,396,0,0.0,0.0,0,90,0,0,60,1.0,0.0,1.417,1.916,2.125
+weak,100,8,2.0,0.25,150,396,76,0.1919191919191919,0.2297979797979798,2,63,0,27,60,0.7,0.0,1.459,1.875,2.25

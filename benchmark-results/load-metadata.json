@@ -1,0 +1,26 @@
+{
+  "seed": 560,
+  "workflow_count": 3000,
+  "event_count": 7983,
+  "modes": [
+    "none",
+    "stateless",
+    "path-aware"
+  ],
+  "concurrency_levels": [
+    10,
+    25,
+    50,
+    100
+  ],
+  "trials_per_configuration": 5,
+  "python": "3.14.5 (main, May 10 2026, 10:21:34) [Clang 21.0.0 (clang-2100.0.123.102)]",
+  "platform": "macOS-26.5-arm64-arm-64bit-Mach-O",
+  "logical_cpu_count": 10,
+  "measurement_notes": {
+    "latency": "In-process governance evaluate() duration; excludes Kafka transport.",
+    "throughput": "Actions completed divided by trial wall time.",
+    "cpu": "Process CPU time divided by wall time; 100% is one fully used core.",
+    "memory": "Process maximum resident set high-water mark, not per-trial allocation."
+  }
+}

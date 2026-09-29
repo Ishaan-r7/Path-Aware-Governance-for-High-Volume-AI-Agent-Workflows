@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.edu/ams560/agent-action.schema.json",
+  "title": "Agent Action Event",
+  "type": "object",
+  "required": [
+    "event_id",
+    "workflow_id",
+    "agent_id",
+    "sequence",
+    "action",
+    "authorized",
+    "occurred_at"
+  ],
+  "properties": {
+    "event_id": {"type": "string", "minLength": 1},
+    "workflow_id": {"type": "string", "minLength": 1},
+    "agent_id": {"type": "string", "minLength": 1},
+    "sequence": {"type": "integer", "minimum": 0},
+    "action": {"type": "string", "minLength": 1},
+    "resource_id": {"type": ["string", "null"]},
+    "resource_type": {"type": ["string", "null"]},
+    "data_classification": {"type": ["string", "null"]},
+    "destination": {"type": ["string", "null"]},
+    "amount": {"type": ["number", "null"]},
+    "authorized": {"type": "boolean"},
+    "occurred_at": {"type": "string", "format": "date-time"},
+    "attributes": {"type": "object"}
+  },
+  "additionalProperties": false
+}
+

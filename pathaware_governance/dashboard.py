@@ -1,0 +1,168 @@
+from __future__ import annotations
+
+import argparse
+import csv
+import json
+import statistics
+from pathlib import Path
+
+
+def _read(path: Path) -> list[dict[str, str]]:
+    with path.open(encoding="utf-8") as handle:
+        return list(csv.DictReader(handle))
+
+
+def build_dashboard(results_dir: Path, output: Path) -> None:
+    load_rows = _read(results_dir / "load-summary.csv")
+    distributed_rows = _read(results_dir / "distributed-kafka.csv")
+    load = [
+        {
+            "mode": row["mode"],
+            "concurrency": int(row["concurrency"]),
+            "throughput": round(float(row["throughput_median_eps"])),
+            "p95_us": round(float(row["latency_p95_median_us"]), 3),
+            "recall": round(float(row["recall"]) * 100, 1),
+            "fpr": round(float(row["false_positive_rate"]) * 100, 1),
+        }
+        for row in load_rows
+    ]
+    grouped: dict[tuple[str, int], list[dict[str, str]]] = {}
+    for row in distributed_rows:
+        grouped.setdefault((row["consistency"], int(row["concurrency"])), []).append(row)
+    distributed = []
+    for (consistency, concurrency), rows in sorted(grouped.items()):
+        distributed.append(
+            {
+                "consistency": consistency,
+                "concurrency": concurrency,
+                "partition": rows[0]["partition_by"],
+                "recall": round(
+                    statistics.median(float(row["recall"]) for row in rows) * 100, 1
+                ),
+                "stale": round(
+                    statistics.median(float(row["stale_read_rate"]) for row in rows)
+                    * 100,
+                    1,
+                ),
+                "throughput": round(
+                    statistics.median(
+                        float(row["throughput_events_per_second"]) for row in rows
+                    )
+                ),
+                "p95_ms": round(
+                    statistics.median(float(row["end_to_end_p95_ms"]) for row in rows),
+                    1,
+                ),
+            }
+        )
+    data = json.dumps({"load": load, "distributed": distributed}, separators=(",", ":"))
+    html = _TEMPLATE.replace("__BENCHMARK_DATA__", data)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(html, encoding="utf-8")
+
+
+_TEMPLATE = """<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Results dashboard for path-aware AI-agent governance experiments">
+  <title>Governance Experiment Dashboard</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%232563eb' d='M16 2 28 7v8c0 8-5 13-12 15C9 28 4 23 4 15V7z'/%3E%3Cpath fill='white' d='m10 16 4 4 8-9 2 2-10 11-6-6z'/%3E%3C/svg%3E">
+  <style>
+    :root { color-scheme: light dark; --bg:#f6f8fc; --surface:#fff; --ink:#14213d; --muted:#5e6b85; --line:#dce3ef; --blue:#2563eb; --cyan:#0891b2; --amber:#d97706; --red:#dc2626; --green:#15803d; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.5 ui-sans-serif,system-ui,-apple-system,sans-serif; }
+    main { width:min(1180px,calc(100% - 32px)); margin:0 auto; padding:28px 0 48px; }
+    header { display:flex; align-items:end; justify-content:space-between; gap:24px; margin-bottom:24px; }
+    h1 { margin:0; font-size:clamp(1.65rem,3vw,2.4rem); line-height:1.1; letter-spacing:-.035em; }
+    h2 { margin:0 0 16px; font-size:1.15rem; }
+    p { margin:.35rem 0 0; color:var(--muted); }
+    label { display:grid; gap:6px; color:var(--muted); font-size:.875rem; font-weight:650; }
+    select { min-width:180px; padding:10px 36px 10px 12px; border:1px solid var(--line); border-radius:8px; background:var(--surface); color:var(--ink); font:inherit; }
+    .metrics { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; margin-bottom:14px; }
+    .metric,.panel { background:var(--surface); border:1px solid var(--line); border-radius:12px; }
+    .metric { padding:18px; }
+    .metric span { display:block; color:var(--muted); font-size:.875rem; }
+    .metric strong { display:block; margin-top:3px; font-size:1.65rem; line-height:1.2; font-variant-numeric:tabular-nums; }
+    .grid { display:grid; grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr); gap:14px; }
+    .panel { padding:20px; min-width:0; }
+    .bar-group { display:grid; gap:17px; }
+    .bar-row { display:grid; grid-template-columns:92px minmax(0,1fr) 100px; gap:12px; align-items:center; }
+    .bar-label { font-weight:650; }
+    .track { height:12px; background:color-mix(in srgb,var(--line) 65%,transparent); border-radius:3px; overflow:hidden; }
+    .fill { height:100%; background:var(--blue); }
+    .bar-row:nth-child(2) .fill { background:var(--amber); }
+    .bar-row:nth-child(3) .fill { background:var(--cyan); }
+    .value { text-align:right; font-variant-numeric:tabular-nums; }
+    table { width:100%; border-collapse:collapse; font-size:.9rem; }
+    th,td { padding:11px 8px; border-bottom:1px solid var(--line); text-align:right; font-variant-numeric:tabular-nums; }
+    th:first-child,td:first-child { text-align:left; }
+    th { color:var(--muted); font-weight:650; }
+    .good { color:var(--green); font-weight:700; }
+    .risk { color:var(--red); font-weight:700; }
+    footer { margin-top:14px; padding:16px 4px; color:var(--muted); font-size:.875rem; }
+    @media (prefers-color-scheme:dark) { :root { --bg:#0b1220; --surface:#111b2e; --ink:#edf3ff; --muted:#a5b2c9; --line:#2c3a52; --blue:#60a5fa; --cyan:#22d3ee; --amber:#fbbf24; --red:#fb7185; --green:#4ade80; } }
+    @media (max-width:850px) { .metrics { grid-template-columns:repeat(2,minmax(0,1fr)); } .grid { grid-template-columns:1fr; } }
+    @media (max-width:560px) { main { width:min(100% - 20px,1180px); padding-top:18px; } header { align-items:stretch; flex-direction:column; } select { width:100%; } .metrics { grid-template-columns:1fr; } .bar-row { grid-template-columns:78px minmax(0,1fr) 76px; gap:8px; } .panel { padding:16px; overflow-x:auto; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div><h1>Path-aware governance</h1><p>Safety, throughput, and distributed-state behavior</p></div>
+      <label for="concurrency">Concurrent workflows<select id="concurrency"><option>10</option><option>25</option><option>50</option><option selected>100</option></select></label>
+    </header>
+    <section class="metrics" aria-label="Selected benchmark metrics">
+      <div class="metric"><span>Path-aware recall</span><strong id="path-recall">—</strong></div>
+      <div class="metric"><span>Path-aware throughput</span><strong id="path-throughput">—</strong></div>
+      <div class="metric"><span>Weak-state stale reads</span><strong id="weak-stale">—</strong></div>
+      <div class="metric"><span>Weak-state recall</span><strong id="weak-recall">—</strong></div>
+    </section>
+    <div class="grid">
+      <section class="panel"><h2>Detection and throughput by mode</h2><div class="bar-group" id="mode-bars"></div></section>
+      <section class="panel"><h2>Real Kafka shared-state trials</h2><div id="distributed-table"></div></section>
+    </div>
+    <footer>In-process results are medians across five trials using 3,000 workflows. Distributed results are medians across two local Kafka trials using four workers and 150 workflows. Weak state uses agent partitioning and a controlled 5 ms update delay.</footer>
+  </main>
+  <script>
+    const results=__BENCHMARK_DATA__;
+    const select=document.getElementById('concurrency');
+    const number=value=>new Intl.NumberFormat('en-US',{maximumFractionDigits:0}).format(value);
+    function render(){
+      const concurrency=Number(select.value);
+      const modes=results.load.filter(row=>row.concurrency===concurrency);
+      const path=modes.find(row=>row.mode==='path-aware');
+      document.getElementById('path-recall').textContent=path?`${path.recall}%`:'—';
+      document.getElementById('path-throughput').textContent=path?`${number(path.throughput)}/s`:'—';
+      const distributed=results.distributed.filter(row=>row.concurrency===concurrency);
+      const weak=distributed.find(row=>row.consistency==='weak');
+      document.getElementById('weak-stale').textContent=weak?`${weak.stale}%`:'Not run';
+      document.getElementById('weak-recall').textContent=weak?`${weak.recall}%`:'Not run';
+      const maximum=Math.max(...modes.map(row=>row.throughput));
+      document.getElementById('mode-bars').innerHTML=modes.map(row=>`<div class="bar-row"><span class="bar-label">${row.mode}</span><div class="track" role="img" aria-label="${row.mode}: ${number(row.throughput)} events per second and ${row.recall}% recall"><div class="fill" style="width:${100*row.throughput/maximum}%"></div></div><span class="value">${number(row.throughput)}/s<br>${row.recall}% recall</span></div>`).join('');
+      if(distributed.length){
+        document.getElementById('distributed-table').innerHTML=`<table><thead><tr><th>State</th><th>Partition</th><th>Recall</th><th>Stale</th><th>p95</th></tr></thead><tbody>${distributed.map(row=>`<tr><td>${row.consistency}</td><td>${row.partition}</td><td class="${row.recall===100?'good':'risk'}">${row.recall}%</td><td>${row.stale}%</td><td>${row.p95_ms} ms</td></tr>`).join('')}</tbody></table>`;
+      }else{
+        document.getElementById('distributed-table').innerHTML='<p>No distributed Kafka trial was run at this concurrency. Select 10, 50, or 100.</p>';
+      }
+    }
+    select.addEventListener('change',render); render();
+  </script>
+</body>
+</html>
+"""
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Build the local experiment dashboard.")
+    parser.add_argument("--results", type=Path, default=Path("benchmark-results"))
+    parser.add_argument("--output", type=Path, default=Path("dashboard/index.html"))
+    args = parser.parse_args()
+    build_dashboard(args.results, args.output)
+    print(args.output)
+
+
+if __name__ == "__main__":
+    main()
+
