@@ -3,6 +3,61 @@
 A change-level record of work on this repo: what was added, changed or removed, and why.
 Newest entries go at the top.
 
+## 2026-10-27: Codex route spike (MCP server and Codex launcher)
+
+Plan item B1 (how to connect GPT-5.6 Luna). The user has a Codex (ChatGPT) subscription, so we
+tested whether Codex can run the pilot with our tools, and only our tools.
+Branch `ai-testing`. Credentials: Codex uses its own login store, and nothing secret is read,
+stored or logged by our code.
+
+### Added
+
+- **`harness/mcp_server.py`: our 8 tools as an MCP server (stdio, stdlib only)**
+  - **How it works:** every tool call goes through the gateway. After each call, the server rewrites a JSON run record (gateway log, outcomes, world snapshot), so a killed process still leaves data behind. The record never includes environment variables.
+  - **Why:** MCP is how Codex accepts outside tools.
+- **`harness/codex_driver.py`: builds and runs `codex exec` for one run**
+  - **Settings it uses:**
+    - GPT-5.6 Luna at medium effort
+    - a read-only sandbox and an empty work folder
+    - no user config or rules loaded, and no saved session
+    - built-in features switched off (shell, web, browser, images and more)
+  - **What it saves:** the JSON event stream, which it sorts into calls to our tools and "other door" calls that did not go through them.
+  - **Why:** to run and audit Codex the same way every time.
+- **`tests/test_harness_mcp.py`: 16 tests.** They cover the protocol, a subprocess smoke test, the command builder and the event classifier. None of them calls Codex.
+
+### Live probes (4 runs on the user's subscription, GPT-5.6 Luna medium)
+
+| What we tested | Result |
+|---|---|
+| Model name `gpt-5.6-luna` with medium effort | Accepted, runs |
+| Our tools through the gateway | Fail by default: "MCP tool call requires approval, but approval policy is never". Fixed with `mcp_servers.governance.default_tools_approval_mode="approve"`, after which calls complete through the gateway |
+| Shell commands | Gone after `--disable shell_tool` / `unified_exec` |
+| Web search | Gone after `web_search="disabled"` |
+| `functions.exec` (Codex "code mode") | Still present. It runs JavaScript, and in our test it had no `process` or `fetch`, so no file or network access was seen. It cannot be switched off without also hiding our tools. Not proven safe |
+| `apply_patch` (file edits) | Still present. Blocked only by the read-only sandbox. It does **not** appear in the JSON event stream, only in stderr, so our classifier misses it |
+| Helper sub-agents (`spawn_agent`) | Still present. `features.multi_agent=false` and `agents.max_threads=1` did not remove it |
+
+### Problems found
+
+- **F7: Codex sub-agents break the shared gateway.**
+  - **What happened:** a helper sub-agent got its *own* copy of our MCP server, which means its own fake world and its own engine. Its `read_data` call returned `art-1` from a separate world, and its record overwrote the main agent's record.
+  - **Why it matters:** the path-aware engine cannot see a path that is split across these copies, and the logs become wrong. We could not switch this feature off.
+- **F8: file-edit attempts are invisible in Codex's event stream.**
+  - **What happened:** `apply_patch` attempts show up only in stderr.
+  - **Why it matters:** right now they are harmless, because the sandbox is read-only and our fake world has no files. But the "other door" check is incomplete.
+- **Confound:** Codex puts its own coding-agent instructions in front of ours. So results would describe "Luna inside Codex", not Luna itself.
+
+### Possible fixes if we continue with Codex
+
+- **For F7:** run one long-lived HTTP MCP server per run instead of stdio, so every Codex thread shares one gateway, one world and one engine.
+- **For F8:** also scan stderr for patch attempts.
+
+### Review
+
+- **Who did what:** I wrote the spec and reviewed the code, and a Sonnet subagent wrote it. I ran the live probes myself.
+- **Tests:** 100 tests, all pass.
+- **Run outputs:** kept in the session scratchpad, not in the repo.
+
 ## 2026-10-27: Model-neutral agent loop (step 5 groundwork)
 
 Groundwork for plan items B1 and B2 (pick a model and run a pilot). Goal: a loop where any LLM
