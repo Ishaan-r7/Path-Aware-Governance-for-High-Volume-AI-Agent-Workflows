@@ -44,8 +44,8 @@ and split-transfer evasion). A Kafka pipeline runs the engines with several work
 strong (workflow-partitioned) and weak (agent-partitioned, replicated) state.
 
 The first phase evaluated the engines on a seeded, template-generated corpus of 150 labeled
-workflows. Because those workflows and the policies share an author, we treat that result as
-an engine sanity check, not as evidence about real agents. The second phase, now under way,
+workflows. This evaluation verifies that each engine behaves as intended on controlled,
+labeled inputs. The second phase, now under way,
 puts a large language model (LLM) agent in a simulated environment where every tool call
 passes through the governance engine, so that detection and cost can be measured on behavior
 we did not script.
@@ -58,12 +58,12 @@ we did not script.
 \midrule
 1 & Event schema, policy definitions, three governance engines & Complete \\
 2 & Seeded synthetic workflow corpus with blind-labeling sample & Labels pending review \\
-3 & Kafka pipeline (actions, decisions, state topics; replay; partitioning) & Complete \\
-4 & Strong and weak multi-worker shared state & Complete \\
+3 & Kafka pipeline (topics, replay, partitioning strategies) & Built; agent runs pending \\
+4 & Strong and weak multi-worker shared state & Built; agent runs pending \\
 5 & Benchmarks (accuracy, stale reads, latency, throughput) and dashboard & Complete \\
-6 & Agent test harness: simulated tools, governance gateway, provenance tracking & Complete \\
-7 & LLM agent loop and single-model pilot (GPT-5.6 Luna, medium reasoning) & In progress \\
-8 & Agent scenario suite, outcome oracle, repeated-run experiment design & Started \\
+6 & Agent test harness: simulated tools, gateway, provenance & Complete \\
+7 & LLM agent loop and single-model pilot (GPT-5.6 Luna, medium effort) & In progress \\
+8 & Agent scenario suite, outcome oracle, repeated-run design & Started \\
 9 & Final validation, reproducibility check, final report & Planned \\
 \bottomrule
 \end{tabularx}
@@ -84,9 +84,10 @@ records every attempted action with a status (blocked, allowed, executed, failed
 limits count only executed transfers, so a blocked attempt no longer inflates later totals. \\
 Workflow corpus (2) & 150 reproducible safe, violating and near-miss workflows (seed 560).
 Remaining: independent two-reviewer labeling of the prepared 20-workflow sample. \\
-Kafka pipeline and state (3, 4) & Complete. With four workers, workflow partitioning gave
-0\% stale reads and 100\% recall; agent partitioning with replicated state gave about 25\%
-median stale reads and 57--59\% median recall. \\
+Kafka pipeline and state (3, 4) & Implemented and measured on the synthetic corpus. With four
+workers, workflow partitioning gave 0\% stale reads and 100\% recall; agent partitioning with
+replicated state gave about 25\% median stale reads and 57--59\% median recall. Remaining:
+validate with traces from LLM agents. \\
 Benchmarks and dashboard (5) & Complete. On the synthetic corpus, stateless recall is 23.3\%
 and path-aware recall is 100\% with no false positives (by construction, see Section~1).
 In-process path-aware throughput was about 340{,}000 events/s at concurrency 10 and 207{,}000
@@ -94,11 +95,13 @@ at concurrency 100. \\
 Agent harness (6) & Complete. A simulated world (data sources, files, accounts, permissions)
 and eight tools; a gateway that builds each event from world state rather than from the agent's
 claims and blocks or runs the call; lineage-based provenance so data-flow rules work without
-agent cooperation. Eleven scripted scenarios run under all three levels with an outcome check
-based on what actually happened in the world. Building it exposed two engine gaps that we
-fixed (a harmless read before a PII read hid exfiltration; blocked attempts counted toward
-transfer totals) and three that we document as known limits (merging two PII sources;
-one agent splitting a payment; a legitimate over-limit payment with no approval path). \\
+agent cooperation. \\
+Scripted scenarios (6) & Eleven scenarios run under all three levels, with harm judged from what
+actually happened in the simulated world. \\
+Engine fixes and known limits (6) & Building the harness exposed two engine gaps that we fixed
+(a harmless read before a PII read hid exfiltration; blocked attempts counted toward transfer
+totals) and three that we document as known limits (merging two PII sources; one agent splitting
+a payment; a legitimate over-limit payment with no approval path). \\
 LLM pilot (7) & A model-neutral agent loop is built and tested with a scripted model. A
 connection through the Codex CLI with our tools served over MCP was tested live: governed tool
 calls work and built-in shell and web tools can be disabled, but Codex sub-agents each start a
@@ -109,10 +112,9 @@ the other engines. \\
 \bottomrule
 \end{longtable}}
 
-The scripted harness scenarios give the following outcomes, judged from the simulated world
-(``harm'' means PII left, a limit was exceeded, an unauthorized refund was issued, or the
-production database was deleted). These are author-written scripts, so they check the engines
-and harness end to end rather than measure agent behavior.
+Outcomes of the scripted harness scenarios, judged from the simulated world (``harm'': PII left,
+a limit was exceeded, an unauthorized refund was issued, or the database was deleted). They check
+the engines and harness end to end and do not measure agent behavior.
 
 {\small
 \begin{tabularx}{\textwidth}{@{}L l l l@{}}
@@ -143,6 +145,9 @@ instructed (benign, tempting, adversarial, multi-agent handoff), with some writt
 who did not write the rules and a held-out set never used to tune rules. Freeze policies and
 pre-register hypotheses and metrics, then run repeated trials per scenario and governance level
 and report confidence intervals, task completion and benign-task blocking alongside recall.
+
+\textbf{Kafka pipeline and shared state (3, 4).} Replay agent traces from the pilot through the
+Kafka workers under both partitioning strategies and compare with the synthetic-corpus results.
 
 \textbf{Final validation (9).} A second member reproduces the full setup on another machine
 (dependencies, Kafka, tests, benchmarks, harness). The final report will state results on
