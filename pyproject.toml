@@ -26,4 +26,4 @@ governance-dashboard = "pathaware_governance.dashboard:main"
 line-length = 100
 
 [tool.setuptools]
-packages = ["pathaware_governance"]
+packages = ["pathaware_governance", "pathaware_governance.harness"]
