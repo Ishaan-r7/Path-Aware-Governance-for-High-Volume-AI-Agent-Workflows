@@ -3,6 +3,24 @@
 A change-level record of work on this repo: what was added, changed or removed, and why.
 Newest entries go at the top.
 
+## 2026-10-27: README update and midterm report
+
+### Added
+
+- **`report/midterm/`:** LaTeX source and PDF of the two-page AMS 560 midterm report.
+  - **Why:** the course requires a short report on objectives, timeline, progress and plans. The earlier draft from a teammate did not cover the agent harness work.
+
+### Changed
+
+- **`README.md`:** added a Status section, an Agent harness section (module table and `make harness`), a Known limitations section, and phases 6 to 9 in the phase list. The intro now says the first milestone was the vertical slice and that the current work adds the harness.
+  - **Why:** the README described only the original prototype, Kafka work and benchmarks, so it did not match the repository.
+  - **Wording:** the first-phase corpus is described as verifying that the engines behave as intended on controlled, labeled inputs, and the README says Kafka and shared-state results are not yet validated with real agent traces.
+
+### Not changed
+
+- **No credentials or API keys** appear in the README or anywhere in the repo.
+- **The compiled report PDF and `.tex` currently contain team member names** and are not committed. The repository is public, so the team should confirm before pushing them.
+
 ## 2026-10-27: Codex route spike (MCP server and Codex launcher)
 
 Plan item B1 (how to connect GPT-5.6 Luna). The user has a Codex (ChatGPT) subscription, so we
