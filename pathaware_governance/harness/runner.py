@@ -27,6 +27,13 @@ _ENGINES = {
 }
 LEVELS = tuple(_ENGINES)
 
+
+def make_engine(level: str) -> GovernanceEngine:
+    """A fresh engine for a governance level."""
+
+    return _ENGINES[level]()
+
+
 _REF = re.compile(r"^\$([\w-]+)\.([\w-]+)$")
 
 
@@ -84,7 +91,7 @@ def run_scenario(scenario: Scenario, level: str) -> RunResult:
     world = World.default()
     if scenario.setup is not None:
         scenario.setup(world)
-    engine = _ENGINES[level]()
+    engine = make_engine(level)
     gateway = Gateway(world, engine, workflow_id=f"{scenario.scenario_id}-{level}")
     outputs: dict[str, dict[str, Any]] = {}
     results: list[dict[str, Any]] = []
