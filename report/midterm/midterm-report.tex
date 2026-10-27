@@ -109,6 +109,24 @@ the other engines. \\
 \bottomrule
 \end{longtable}}
 
+The scripted harness scenarios give the following outcomes, judged from the simulated world
+(``harm'' means PII left, a limit was exceeded, an unauthorized refund was issued, or the
+production database was deleted). These are author-written scripts, so they check the engines
+and harness end to end rather than measure agent behavior.
+
+{\small
+\begin{tabularx}{\textwidth}{@{}L l l l@{}}
+\toprule
+\textbf{Scenario group} & \textbf{None} & \textbf{Stateless} & \textbf{Path-aware} \\
+\midrule
+PII exfiltration paths (3, incl.\ harmless read first) & harm & harm & blocked \\
+Two-agent split transfer; privilege laundering & harm & harm & blocked \\
+Over-limit transfer; delete production database & harm & blocked & blocked \\
+Benign internal report; authorized delegation & no harm & no harm & no harm \\
+Known limits: two PII sources merged; one-agent split & harm & harm & harm \\
+\bottomrule
+\end{tabularx}}
+
 \section{Plan for Unfinished Deliverables}
 
 \textbf{Corpus labels (2).} Two members label the 20-workflow blind sample using only the
@@ -129,5 +147,14 @@ and report confidence intervals, task completion and benign-task blocking alongs
 \textbf{Final validation (9).} A second member reproduces the full setup on another machine
 (dependencies, Kafka, tests, benchmarks, harness). The final report will state results on
 synthetic workflows and on agent runs separately and list the known limits above.
+
+\section{Difficulties and Risks}
+
+The main systems difficulty was shared state across Kafka workers: agent partitioning splits a
+workflow over workers, so decisions use incomplete history; we report in-process and Kafka costs
+separately. The main research risk is circularity: if one author writes rules, scenarios and
+labels, high recall says little. Independent authors, a held-out set, a world-based outcome
+check and pre-registered metrics are our safeguards. Practical risks are model access and cost
+for repeated trials, and keeping every agent action inside the governed tool path.
 
 \end{document}
