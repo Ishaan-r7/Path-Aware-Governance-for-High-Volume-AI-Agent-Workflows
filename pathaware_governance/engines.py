@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Iterable
 from typing import Protocol
 
 from .models import ActionEvent, Decision, DecisionOutcome
@@ -11,6 +10,8 @@ class GovernanceEngine(Protocol):
     mode: str
 
     def evaluate(self, event: ActionEvent) -> Decision: ...
+
+    def record_outcome(self, event_id: str, executed: bool) -> None: ...
 
 
 def _allow(event: ActionEvent, mode: str) -> Decision:
@@ -28,11 +29,18 @@ def _block(event: ActionEvent, mode: str, policy_id: str, reason: str) -> Decisi
     )
 
 
+# Statuses of prior events that count toward cumulative limits.
+_COUNTED = {"executed", "allowed"}
+
+
 class NoGovernanceEngine:
     mode = "none"
 
     def evaluate(self, event: ActionEvent) -> Decision:
         return _allow(event, self.mode)
+
+    def record_outcome(self, event_id: str, executed: bool) -> None:
+        return None
 
 
 class StatelessGovernanceEngine:
@@ -67,6 +75,9 @@ class StatelessGovernanceEngine:
             )
         return _allow(event, self.mode)
 
+    def record_outcome(self, event_id: str, executed: bool) -> None:
+        return None
+
 
 class PathAwareGovernanceEngine:
     """Stateful policy engine for ordered, cross-agent workflow paths.
@@ -82,6 +93,8 @@ class PathAwareGovernanceEngine:
         self.transaction_limit = transaction_limit
         self._stateless = StatelessGovernanceEngine(transaction_limit)
         self._history: dict[str, list[ActionEvent]] = defaultdict(list)
+        # event_id -> "blocked" | "allowed" | "executed" | "failed"
+        self._status: dict[str, str] = {}
 
     def evaluate(self, event: ActionEvent) -> Decision:
         previous = self._history[event.workflow_id]
@@ -103,17 +116,36 @@ class PathAwareGovernanceEngine:
                 or _allow(event, self.mode)
             )
 
-        # Attempted actions are retained for auditability. Downstream experiments
-        # can separately model whether blocked actions mutate business state.
+        # Every attempt is retained, blocked or not. Cumulative rules count only
+        # attempts that were allowed and not reported as failed.
         self.observe(event)
+        self._status[event.event_id] = "blocked" if decision.blocked else "allowed"
         return decision
 
     def history(self, workflow_id: str) -> tuple[ActionEvent, ...]:
         return tuple(self._history.get(workflow_id, ()))
 
-    def observe(self, event: ActionEvent) -> None:
+    def attempts(self, workflow_id: str) -> tuple[tuple[ActionEvent, str], ...]:
+        """History events paired with their execution status, for audit."""
+
+        return tuple(
+            (item, self._status.get(item.event_id, "allowed"))
+            for item in self._history.get(workflow_id, ())
+        )
+
+    def record_outcome(self, event_id: str, executed: bool) -> None:
+        """Report whether an allowed action actually happened. Unknown ids are ignored."""
+
+        if event_id in self._status:
+            self._status[event_id] = "executed" if executed else "failed"
+
+    def observe(self, event: ActionEvent, executed: bool | None = None) -> None:
         """Merge an event learned from shared state without evaluating it again."""
 
+        if executed is not None:
+            self._status[event.event_id] = "executed" if executed else "failed"
+        else:
+            self._status.setdefault(event.event_id, "allowed")
         history = self._history[event.workflow_id]
         if any(existing.event_id == event.event_id for existing in history):
             return
@@ -123,28 +155,38 @@ class PathAwareGovernanceEngine:
     def _detect_data_exfiltration(
         self, event: ActionEvent, path: list[ActionEvent]
     ) -> Decision | None:
-        required = ("read_data", "aggregate_data", "export_file", "transmit_external")
-        matched = _ordered_subsequence(path, required)
-        flow_ids = {
-            item.attributes.get("data_flow_id") for item in matched or ()
-        }
+        flow_id = event.attributes.get("data_flow_id")
         if (
-            event.action == required[-1]
-            and matched
-            and matched[0].data_classification == "pii"
-            and event.destination == "external"
-            and None not in flow_ids
-            and len(flow_ids) == 1
+            event.action != "transmit_external"
+            or event.destination != "external"
+            or flow_id is None
         ):
-            cross_agent = len({item.agent_id for item in matched}) >= 2
-            return _block(
-                event,
-                self.mode,
-                "P-CROSS-AGENT-EXFILTRATION" if cross_agent else "P-DATA-EXFILTRATION",
-                ("Cross-agent path" if cross_agent else "Action path")
-                + " reads PII, aggregates it, exports it, and transmits it externally.",
-            )
-        return None
+            return None
+        # Search backwards from the current event so an earlier harmless read
+        # cannot hide the PII read that feeds this flow.
+        matched = [event]
+        wanted = [("export_file", None), ("aggregate_data", None), ("read_data", "pii")]
+        for item in reversed(path[:-1]):
+            action, classification = wanted[0]
+            if (
+                item.action == action
+                and item.attributes.get("data_flow_id") == flow_id
+                and (classification is None or item.data_classification == classification)
+            ):
+                matched.append(item)
+                wanted.pop(0)
+                if not wanted:
+                    break
+        if wanted:
+            return None
+        cross_agent = len({item.agent_id for item in matched}) >= 2
+        return _block(
+            event,
+            self.mode,
+            "P-CROSS-AGENT-EXFILTRATION" if cross_agent else "P-DATA-EXFILTRATION",
+            ("Cross-agent path" if cross_agent else "Action path")
+            + " reads PII, aggregates it, exports it, and transmits it externally.",
+        )
 
     def _detect_privilege_laundering(
         self, event: ActionEvent, path: list[ActionEvent]
@@ -179,6 +221,7 @@ class PathAwareGovernanceEngine:
             if item.action == "transfer_funds"
             and item.destination == event.destination
             and item.resource_id == event.resource_id
+            and (item is event or self._status.get(item.event_id, "allowed") in _COUNTED)
         ]
         total = sum(item.amount or 0 for item in transfers)
         if total > self.transaction_limit and len({item.agent_id for item in transfers}) >= 2:
@@ -191,16 +234,3 @@ class PathAwareGovernanceEngine:
             )
         return None
 
-
-def _ordered_subsequence(
-    events: Iterable[ActionEvent], required_actions: tuple[str, ...]
-) -> list[ActionEvent] | None:
-    matched: list[ActionEvent] = []
-    next_index = 0
-    for event in events:
-        if event.action == required_actions[next_index]:
-            matched.append(event)
-            next_index += 1
-            if next_index == len(required_actions):
-                return matched
-    return None

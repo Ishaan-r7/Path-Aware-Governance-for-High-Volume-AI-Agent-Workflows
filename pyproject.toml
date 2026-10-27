@@ -21,9 +21,10 @@ governance-report = "pathaware_governance.reporting:main"
 governance-kafka-smoke = "pathaware_governance.kafka_smoke:main"
 governance-distributed = "pathaware_governance.distributed:main"
 governance-dashboard = "pathaware_governance.dashboard:main"
+governance-harness = "pathaware_governance.harness.runner:main"
 
 [tool.ruff]
 line-length = 100
 
 [tool.setuptools]
-packages = ["pathaware_governance"]
+packages = ["pathaware_governance", "pathaware_governance.harness"]

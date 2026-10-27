@@ -79,3 +79,29 @@ history. That history is an audit log, not a statement that the underlying
 business action executed. Future events and decisions will carry explicit
 `attempted`, `allowed`, and `executed` timestamps/statuses where needed.
 
+
+## Agent harness
+
+The harness (`pathaware_governance/harness`) lets agents run against the engines in a
+fake world. Tools are dumb executors: they mutate an in-memory `World` and know
+nothing about governance. The `Gateway` sits in front of them. For each proposed call
+it validates the arguments, builds an `ActionEvent` from the call plus world state,
+asks the engine, and runs the tool only if the decision allows it.
+
+Event fields come from the world, not from agent claims: `authorized` is a permission
+lookup, classification and destination are resolved from sources, artifacts, and the
+internal-destination list. Ids that do not resolve leave the derived fields empty.
+
+A blocked action does not run and does not change the world, not even its ledger. The
+engine remembers every attempt in its history with a status (`blocked`, `allowed`,
+`executed`, `failed`); the gateway reports each allowed tool's outcome through
+`record_outcome`. Cumulative rules, such as split-action evasion, count only executed
+actions, so a blocked or failed attempt does not push later transfers over the limit.
+An allowed action with no reported outcome is treated as executed.
+
+`data_flow_id` is derived from artifact lineage: the sorted ids of the sources at the
+lineage's highest classification, joined with `+`. Customers merged with public docs
+stays `customers`, so the chain still matches the original read. Two different PII
+sources merged give `a+b`, which does not match the earlier single-source read; the
+exfiltration rule misses that path. This is a known limit. With provenance disabled
+the rule never fires, which the tests use to show why provenance matters.
