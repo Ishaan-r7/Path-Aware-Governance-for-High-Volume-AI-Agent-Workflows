@@ -7,6 +7,7 @@
 \usepackage{booktabs}
 \usepackage{tabularx}
 \usepackage{array}
+\usepackage{longtable}
 
 \setlength{\parindent}{0pt}
 \setlength{\parskip}{4pt}
@@ -69,11 +70,15 @@ we did not script.
 
 \section{Progress on Each Deliverable}
 
+% longtable so the table can break across the page instead of leaving a gap.
 {\small
-\begin{tabularx}{\textwidth}{@{}p{0.27\textwidth} L@{}}
+\setlength{\LTpre}{0pt}\setlength{\LTpost}{0pt}
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{0.24\textwidth}
+  >{\raggedright\arraybackslash}p{\dimexpr0.76\textwidth-2\tabcolsep\relax}@{}}
 \toprule
 \textbf{Deliverable} & \textbf{What is done and what remains} \\
 \midrule
+\endhead
 Engines (1) & All three engines implemented behind one interface. The path-aware engine now
 records every attempted action with a status (blocked, allowed, executed, failed); cumulative
 limits count only executed transfers, so a blocked attempt no longer inflates later totals. \\
@@ -102,7 +107,7 @@ Scenario suite and design (8) & Groundwork only: outcome-based harm check, basic
 (blocks, retries after a block, task completion), and offline replay of ungoverned runs through
 the other engines. \\
 \bottomrule
-\end{tabularx}}
+\end{longtable}}
 
 \section{Plan for Unfinished Deliverables}
 
