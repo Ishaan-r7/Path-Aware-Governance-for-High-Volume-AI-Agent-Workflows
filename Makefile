@@ -1,10 +1,13 @@
-.PHONY: test generate benchmark report dashboard kafka-up kafka-down kafka-setup kafka-smoke distributed
+.PHONY: test harness generate benchmark report dashboard kafka-up kafka-down kafka-setup kafka-smoke distributed
 
 PYTHON ?= python3
 KAFKA_PYTHON ?= .venv/bin/python
 
 test:
 	$(PYTHON) -m unittest discover -s tests -v
+
+harness:
+	$(PYTHON) -m pathaware_governance.harness
 
 generate:
 	$(PYTHON) -m pathaware_governance.generator
