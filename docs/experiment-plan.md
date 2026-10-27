@@ -64,6 +64,19 @@ Every generated record will include:
 - Pin software/configuration versions and record the machine profile.
 - Use the synchronous path-aware implementation as a correctness oracle.
 
+## Known limitations for agent scenarios
+
+- Two different PII sources merged into one artifact get a combined `data_flow_id`
+  (e.g. `customers+hr`) that does not match the single-source read, so the exfiltration
+  rule misses that path. Scenarios that merge two PII sources must be labeled as
+  covering this known gap, and their results reported separately rather than counted
+  as engine misses or passes without comment.
+- Split-action evasion only triggers with two or more distinct agents; one agent
+  splitting a transfer into several under-limit transfers to the same destination is
+  not caught by any engine. Open question, not yet decided.
+- Cumulative limits count executed transfers only; blocked and failed attempts are
+  recorded but not summed (the decision above).
+
 ## Phase 1 acceptance criteria
 
 - One canonical event model is shared by all engines.

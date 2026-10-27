@@ -267,14 +267,13 @@ def _type_problem(key: str, value: Any, spec: dict[str, Any]) -> str | None:
     return None
 
 
-def call_tool(world: World, agent_id: str, name: str, args: dict[str, Any]) -> ToolResult:
-    """Dispatch a tool call; unknown tools and bad arguments yield a failed result."""
+def _check(name: str, args: Any) -> tuple[str, dict[str, Any]] | None:
+    """Return (error, args-to-log) for an invalid call, or None if it is valid."""
 
-    tool = TOOLS.get(name)
-    if tool is None:
-        return _fail(world, agent_id, name, {}, f"unknown tool: {name}")
+    if name not in TOOLS:
+        return f"unknown tool: {name}", {}
     if not isinstance(args, dict):
-        return _fail(world, agent_id, name, {}, "arguments must be an object")
+        return "arguments must be an object", {}
     parameters = TOOL_SPECS[name]["parameters"]
     missing = [key for key in parameters["required"] if key not in args]
     unexpected = [key for key in args if key not in parameters["properties"]]
@@ -284,9 +283,25 @@ def call_tool(world: World, agent_id: str, name: str, args: dict[str, Any]) -> T
             detail.append(f"missing arguments: {', '.join(missing)}")
         if unexpected:
             detail.append(f"unexpected arguments: {', '.join(sorted(unexpected))}")
-        return _fail(world, agent_id, name, dict(args), "; ".join(detail))
+        return "; ".join(detail), dict(args)
     for key, value in args.items():
         problem = _type_problem(key, value, parameters["properties"][key])
         if problem:
-            return _fail(world, agent_id, name, _loggable(args), problem)
-    return tool(world, agent_id, **args)
+            return problem, _loggable(args)
+    return None
+
+
+def validate_call(name: str, args: Any) -> str | None:
+    """Return the error message for an invalid tool call, or None. No side effects."""
+
+    problem = _check(name, args)
+    return problem[0] if problem else None
+
+
+def call_tool(world: World, agent_id: str, name: str, args: dict[str, Any]) -> ToolResult:
+    """Dispatch a tool call; unknown tools and bad arguments yield a failed result."""
+
+    problem = _check(name, args)
+    if problem:
+        return _fail(world, agent_id, name, problem[1], problem[0])
+    return TOOLS[name](world, agent_id, **args)
