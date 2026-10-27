@@ -135,10 +135,11 @@ Known limits: two PII sources merged; one-agent split & harm & harm & harm \\
 written policies; we compare against each other and the generated labels and revise ambiguous
 policies or templates before freezing them.
 
-\textbf{LLM pilot (7).} Choose the connection: either fix the Codex route with one shared tool
-server per run, or call the model through the OpenAI API with the key read from an environment
-variable (never stored in the repository). Then run the three draft pilot tasks with one model
-to debug the loop and the outcome check before any full experiment.
+\textbf{LLM pilot (7).} Choose the connection: fix the Codex route with one shared tool server
+per run, or call the model directly through the OpenAI API, which exposes only our tools and
+none of Codex's built-in ones (key read from an environment variable, never stored in the
+repository). Run the three draft pilot tasks with one model to debug the loop and the outcome
+check, then identify and test alternative models from other providers behind the same agent loop.
 
 \textbf{Scenario suite and design (8).} Write scenarios where a violation is possible but never
 instructed (benign, tempting, adversarial, multi-agent handoff), with some written by a member
@@ -150,16 +151,15 @@ and report confidence intervals, task completion and benign-task blocking alongs
 Kafka workers under both partitioning strategies and compare with the synthetic-corpus results.
 
 \textbf{Final validation (9).} A second member reproduces the full setup on another machine
-(dependencies, Kafka, tests, benchmarks, harness). The final report will state results on
-synthetic workflows and on agent runs separately and list the known limits above.
+(dependencies, Kafka, tests, benchmarks, harness). The final report will keep synthetic-workflow
+and agent-run results separate and list the known limits above.
 
 \section{Difficulties and Risks}
 
 The main systems difficulty was shared state across Kafka workers: agent partitioning splits a
-workflow over workers, so decisions use incomplete history; we report in-process and Kafka costs
-separately. The main research risk is circularity: if one author writes rules, scenarios and
-labels, high recall says little. Independent authors, a held-out set, a world-based outcome
-check and pre-registered metrics are our safeguards. Practical risks are model access and cost
-for repeated trials, and keeping every agent action inside the governed tool path.
+workflow, so decisions use incomplete history. We report in-process and Kafka costs separately.
+The main research risk is circularity: if one author writes rules, scenarios and
+labels, high recall says little. Our safeguards are independent authors, a held-out set, a
+world-based outcome check and pre-registered metrics. Model access and cost are practical risks.
 
 \end{document}
